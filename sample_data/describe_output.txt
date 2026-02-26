@@ -1,0 +1,37 @@
+Name:         nginx-deployment-5d4c4b8c9-x7z2k
+Namespace:    default
+Priority:     0
+Node:         worker-node-1/10.0.0.5
+Start Time:   Mon, 25 Feb 2026 10:00:00 -0800
+Labels:       app=nginx
+              pod-template-hash=5d4c4b8c9
+Status:       Running
+IP:           10.244.1.15
+Containers:
+  nginx:
+    Container ID:   containerd://abc123def456
+    Image:          nginx:latests
+    Image ID:       
+    Port:           80/TCP
+    State:          Waiting
+      Reason:       ImagePullBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+    Ready:          False
+    Restart Count:  5
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:     250m
+      memory:  64Mi
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  5m                 default-scheduler  Successfully assigned default/nginx-deployment-5d4c4b8c9-x7z2k to worker-node-1
+  Normal   Pulling    4m (x4 over 5m)    kubelet            Pulling image "nginx:latests"
+  Warning  Failed     4m (x4 over 5m)    kubelet            Failed to pull image "nginx:latests": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/nginx:latests": failed to resolve reference "docker.io/library/nginx:latests": docker.io/library/nginx:latests: not found
+  Warning  Failed     4m (x4 over 5m)    kubelet            Error: ErrImagePull
+  Warning  Failed     3m (x6 over 5m)    kubelet            Error: ImagePullBackOff
+  Normal   BackOff    30s (x20 over 5m)  kubelet            Back-off pulling image "nginx:latests"

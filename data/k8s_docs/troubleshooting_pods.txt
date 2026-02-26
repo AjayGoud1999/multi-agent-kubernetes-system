@@ -1,0 +1,161 @@
+# Kubernetes Pod Troubleshooting Guide
+
+## CrashLoopBackOff
+
+CrashLoopBackOff indicates that a container is repeatedly crashing after starting. Kubernetes will back off restarting the container with an exponentially increasing delay.
+
+### Common Causes
+1. Application errors or bugs causing immediate exit
+2. Missing dependencies or configuration
+3. Incorrect command or entrypoint
+4. Missing environment variables
+5. File permission issues
+6. Resource constraints (OOM)
+
+### Diagnosis Steps
+1. Check pod events: `kubectl describe pod <pod-name>`
+2. View container logs: `kubectl logs <pod-name> --previous`
+3. Check exit codes in pod status
+4. Verify environment variables and ConfigMaps
+5. Check if the container image exists and is accessible
+
+### Common Exit Codes
+- Exit Code 0: Container exited successfully (but shouldn't for long-running processes)
+- Exit Code 1: Application error
+- Exit Code 137: Container received SIGKILL (often OOMKilled)
+- Exit Code 139: Segmentation fault
+- Exit Code 143: Container received SIGTERM
+
+## ImagePullBackOff / ErrImagePull
+
+These errors occur when Kubernetes cannot pull the container image.
+
+### Common Causes
+1. Image name or tag is incorrect
+2. Image doesn't exist in the registry
+3. Registry requires authentication
+4. Network issues preventing registry access
+5. Private registry not configured
+
+### Diagnosis Steps
+1. Verify image name and tag: `kubectl describe pod <pod-name>`
+2. Check if image exists: `docker pull <image-name>`
+3. Verify imagePullSecrets are configured
+4. Check registry credentials in secrets
+5. Verify network connectivity to registry
+
+### Solutions
+1. Fix the image name/tag in deployment
+2. Create imagePullSecret: `kubectl create secret docker-registry`
+3. Add imagePullSecrets to ServiceAccount or Pod spec
+4. Check if the registry is accessible from cluster nodes
+
+## OOMKilled (Out of Memory)
+
+Container was terminated because it exceeded its memory limit.
+
+### Common Causes
+1. Memory limit set too low
+2. Memory leak in application
+3. Application requires more memory than allocated
+4. JVM heap not configured properly
+
+### Diagnosis Steps
+1. Check container memory limits: `kubectl describe pod <pod-name>`
+2. View resource usage: `kubectl top pod <pod-name>`
+3. Check for OOMKilled in container status
+4. Review application memory usage patterns
+
+### Solutions
+1. Increase memory limits in pod spec
+2. Fix memory leaks in application
+3. Configure JVM heap size appropriately (-Xmx)
+4. Implement proper resource requests and limits
+
+## Pending Pods
+
+Pod remains in Pending state and is not scheduled to a node.
+
+### Common Causes
+1. Insufficient cluster resources (CPU/memory)
+2. Node selector or affinity rules cannot be satisfied
+3. Taints and tolerations mismatch
+4. PersistentVolumeClaim not bound
+5. ResourceQuota exceeded
+
+### Diagnosis Steps
+1. Check pod events: `kubectl describe pod <pod-name>`
+2. View cluster resources: `kubectl describe nodes`
+3. Check PVC status: `kubectl get pvc`
+4. Review ResourceQuotas: `kubectl get resourcequota`
+
+### Solutions
+1. Scale up cluster or reduce resource requests
+2. Adjust node selectors or affinity rules
+3. Add appropriate tolerations
+4. Provision required PersistentVolumes
+5. Increase ResourceQuota limits
+
+## Probe Failures
+
+Liveness or readiness probes failing cause pod restarts or traffic routing issues.
+
+### Liveness Probe Failures
+- Container is restarted when liveness probe fails
+- Check if application is actually unhealthy or probe is misconfigured
+
+### Readiness Probe Failures
+- Pod is removed from service endpoints
+- Traffic is not routed to the pod
+
+### Common Causes
+1. Probe endpoint not implemented correctly
+2. Timeout too short for application startup
+3. initialDelaySeconds too short
+4. Application genuinely unhealthy
+
+### Solutions
+1. Increase initialDelaySeconds for slow-starting apps
+2. Increase timeoutSeconds and periodSeconds
+3. Verify probe endpoint returns correct status codes
+4. Use startup probes for slow-starting containers
+
+## Network Issues
+
+### Pod Cannot Reach External Services
+1. Check DNS resolution: `kubectl exec <pod> -- nslookup <service>`
+2. Verify NetworkPolicies allow egress
+3. Check if cluster DNS is working
+4. Verify service endpoints exist
+
+### Pod Cannot Reach Other Pods
+1. Check NetworkPolicies for ingress/egress rules
+2. Verify service selectors match pod labels
+3. Check if pods are in the same namespace or use FQDN
+4. Verify CNI plugin is functioning
+
+### Service Not Accessible
+1. Check service endpoints: `kubectl get endpoints <service>`
+2. Verify pod labels match service selector
+3. Check if pods are Ready
+4. Verify service port configuration
+
+## Volume Mount Issues
+
+### Common Causes
+1. PersistentVolume not available
+2. StorageClass not found
+3. Volume permissions incorrect
+4. ReadWriteOnce volume already mounted
+
+### Diagnosis Steps
+1. Check PVC status: `kubectl get pvc`
+2. Check PV status: `kubectl get pv`
+3. View pod events for mount errors
+4. Check storage provisioner logs
+
+### Solutions
+1. Create required PersistentVolume
+2. Verify StorageClass exists and is default
+3. Use fsGroup in securityContext for permissions
+4. Use ReadWriteMany for multi-pod access

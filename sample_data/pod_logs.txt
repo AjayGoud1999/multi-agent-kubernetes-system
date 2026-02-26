@@ -1,0 +1,1 @@
+Error from server (BadRequest): container "nginx" in pod "nginx-deployment-5d4c4b8c9-x7z2k" is waiting to start: image can't be pulled

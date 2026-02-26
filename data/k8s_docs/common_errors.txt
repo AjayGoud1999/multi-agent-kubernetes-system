@@ -1,0 +1,242 @@
+# Common Kubernetes Errors and Solutions
+
+## Error: ImagePullBackOff
+
+### Description
+Kubernetes cannot pull the container image from the registry.
+
+### Symptoms
+- Pod stuck in ImagePullBackOff or ErrImagePull state
+- Events show "Failed to pull image" or "image not found"
+
+### Common Causes and Solutions
+
+1. **Typo in image name or tag**
+   - Solution: Verify image name and tag are correct
+   - Command: `kubectl describe pod <pod-name> | grep Image`
+
+2. **Image doesn't exist**
+   - Solution: Verify image exists in registry
+   - Command: `docker pull <image-name>` from a machine with registry access
+
+3. **Private registry without credentials**
+   - Solution: Create and configure imagePullSecret
+   ```bash
+   kubectl create secret docker-registry regcred \
+     --docker-server=<registry> \
+     --docker-username=<user> \
+     --docker-password=<password>
+   ```
+
+4. **Network issues**
+   - Solution: Check node network connectivity to registry
+   - Verify DNS resolution works on nodes
+
+## Error: CrashLoopBackOff
+
+### Description
+Container starts but crashes repeatedly, causing Kubernetes to back off restarts.
+
+### Symptoms
+- Pod shows CrashLoopBackOff status
+- Restart count keeps increasing
+- Container exits shortly after starting
+
+### Common Causes and Solutions
+
+1. **Application error on startup**
+   - Solution: Check logs for application errors
+   - Command: `kubectl logs <pod-name> --previous`
+
+2. **Missing configuration**
+   - Solution: Verify ConfigMaps and Secrets are mounted
+   - Check environment variables are set correctly
+
+3. **Missing dependencies**
+   - Solution: Ensure all required services are available
+   - Check database connections, external APIs
+
+4. **Incorrect command or args**
+   - Solution: Verify container command and arguments
+   - Check if entrypoint script exists and is executable
+
+5. **Insufficient resources**
+   - Solution: Increase resource limits
+   - Check for OOMKilled in container status
+
+## Error: OOMKilled
+
+### Description
+Container exceeded its memory limit and was killed by the kernel.
+
+### Symptoms
+- Container status shows OOMKilled
+- Exit code 137
+- Pod restarts frequently
+
+### Solutions
+
+1. **Increase memory limit**
+   ```yaml
+   resources:
+     limits:
+       memory: "512Mi"
+   ```
+
+2. **Fix memory leak in application**
+   - Profile application memory usage
+   - Review code for memory leaks
+
+3. **Configure JVM heap (for Java apps)**
+   ```yaml
+   env:
+     - name: JAVA_OPTS
+       value: "-Xmx384m -Xms256m"
+   ```
+
+## Error: CreateContainerConfigError
+
+### Description
+Kubernetes cannot create the container due to configuration issues.
+
+### Common Causes and Solutions
+
+1. **Secret or ConfigMap not found**
+   - Solution: Create the missing Secret/ConfigMap
+   - Command: `kubectl get secrets` / `kubectl get configmaps`
+
+2. **Secret key not found**
+   - Solution: Verify the key exists in the Secret
+   - Command: `kubectl describe secret <secret-name>`
+
+3. **Invalid security context**
+   - Solution: Review and fix securityContext settings
+
+## Error: Pending Pod
+
+### Description
+Pod cannot be scheduled to any node.
+
+### Common Causes and Solutions
+
+1. **Insufficient resources**
+   - Solution: Scale cluster or reduce resource requests
+   - Command: `kubectl describe nodes | grep -A 5 "Allocated resources"`
+
+2. **Node selector mismatch**
+   - Solution: Add labels to nodes or adjust nodeSelector
+   - Command: `kubectl label nodes <node> <key>=<value>`
+
+3. **Taints without tolerations**
+   - Solution: Add tolerations to pod spec
+   ```yaml
+   tolerations:
+     - key: "key"
+       operator: "Equal"
+       value: "value"
+       effect: "NoSchedule"
+   ```
+
+4. **PVC not bound**
+   - Solution: Create PersistentVolume or check StorageClass
+   - Command: `kubectl get pvc`
+
+## Error: Readiness/Liveness Probe Failed
+
+### Description
+Health check probes are failing, affecting pod availability.
+
+### Symptoms
+- Readiness: Pod removed from service endpoints
+- Liveness: Pod gets restarted
+
+### Solutions
+
+1. **Increase initialDelaySeconds**
+   - For slow-starting applications
+   ```yaml
+   livenessProbe:
+     initialDelaySeconds: 60
+   ```
+
+2. **Increase timeoutSeconds**
+   - For slow health check endpoints
+   ```yaml
+   livenessProbe:
+     timeoutSeconds: 10
+   ```
+
+3. **Fix health check endpoint**
+   - Ensure endpoint returns 200 status
+   - Verify endpoint path is correct
+
+4. **Use startup probe**
+   - For applications with variable startup time
+   ```yaml
+   startupProbe:
+     httpGet:
+       path: /healthz
+       port: 8080
+     failureThreshold: 30
+     periodSeconds: 10
+   ```
+
+## Error: Service Has No Endpoints
+
+### Description
+Service exists but has no backend pods.
+
+### Common Causes and Solutions
+
+1. **Selector mismatch**
+   - Solution: Verify service selector matches pod labels
+   - Command: `kubectl get endpoints <service-name>`
+
+2. **Pods not ready**
+   - Solution: Check pod readiness probes
+   - Command: `kubectl get pods -l <selector>`
+
+3. **Pods in wrong namespace**
+   - Solution: Ensure pods and service are in same namespace
+
+## Error: FailedMount / FailedAttachVolume
+
+### Description
+Volume cannot be mounted to the pod.
+
+### Common Causes and Solutions
+
+1. **PV not available**
+   - Solution: Create PersistentVolume
+   - Command: `kubectl get pv`
+
+2. **Volume already mounted (RWO)**
+   - Solution: Use ReadWriteMany or ensure single pod access
+   - Scale down other deployments using the volume
+
+3. **Storage class not found**
+   - Solution: Create StorageClass or use existing one
+   - Command: `kubectl get storageclass`
+
+4. **Permission denied**
+   - Solution: Use fsGroup in securityContext
+   ```yaml
+   securityContext:
+     fsGroup: 1000
+   ```
+
+## Error: NetworkPolicy Blocking Traffic
+
+### Description
+Network policies are preventing pod communication.
+
+### Diagnosis
+```bash
+kubectl get networkpolicies -A
+kubectl describe networkpolicy <name>
+```
+
+### Solutions
+1. Add appropriate ingress/egress rules
+2. Ensure pod labels match policy selectors
+3. Check if default deny policies exist

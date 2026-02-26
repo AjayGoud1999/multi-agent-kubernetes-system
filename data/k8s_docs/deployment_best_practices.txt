@@ -1,0 +1,225 @@
+# Kubernetes Deployment Best Practices
+
+## Resource Management
+
+### Always Set Resource Requests and Limits
+```yaml
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "500m"
+```
+
+- Requests: Guaranteed resources for scheduling
+- Limits: Maximum resources the container can use
+- Without limits, containers can consume all node resources
+- Without requests, scheduling may be suboptimal
+
+### Resource Guidelines
+- Set requests based on typical usage
+- Set limits based on peak usage
+- Memory limits should be at least 1.5x requests
+- CPU limits can be higher as CPU is compressible
+
+## Health Checks
+
+### Liveness Probes
+Determines if container should be restarted.
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+```
+
+### Readiness Probes
+Determines if container can receive traffic.
+```yaml
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+```
+
+### Startup Probes
+For slow-starting containers.
+```yaml
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  failureThreshold: 30
+  periodSeconds: 10
+```
+
+## Security Best Practices
+
+### Run as Non-Root
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+```
+
+### Read-Only Root Filesystem
+```yaml
+securityContext:
+  readOnlyRootFilesystem: true
+```
+
+### Drop All Capabilities
+```yaml
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+```
+
+### Avoid Privileged Containers
+Never use `privileged: true` unless absolutely necessary.
+
+## Configuration Management
+
+### Use ConfigMaps for Configuration
+```yaml
+envFrom:
+  - configMapRef:
+      name: app-config
+```
+
+### Use Secrets for Sensitive Data
+```yaml
+envFrom:
+  - secretRef:
+      name: app-secrets
+```
+
+### Never Hardcode Secrets
+- Use Kubernetes Secrets
+- Use external secret managers (Vault, AWS Secrets Manager)
+- Use sealed-secrets for GitOps
+
+## High Availability
+
+### Use Multiple Replicas
+```yaml
+spec:
+  replicas: 3
+```
+
+### Pod Anti-Affinity
+Spread pods across nodes:
+```yaml
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app: myapp
+          topologyKey: kubernetes.io/hostname
+```
+
+### Pod Disruption Budgets
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: myapp-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: myapp
+```
+
+## Image Best Practices
+
+### Use Specific Tags
+- Avoid `latest` tag
+- Use semantic versioning: `myapp:1.2.3`
+- Use image digests for immutability: `myapp@sha256:...`
+
+### Use Minimal Base Images
+- Use distroless or alpine images
+- Reduces attack surface
+- Smaller image size
+
+### Always Pull from Trusted Registries
+- Use private registries
+- Scan images for vulnerabilities
+- Sign and verify images
+
+## Labels and Annotations
+
+### Standard Labels
+```yaml
+metadata:
+  labels:
+    app.kubernetes.io/name: myapp
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: myplatform
+    app.kubernetes.io/managed-by: helm
+```
+
+### Use Labels for
+- Service selectors
+- Deployment selectors
+- Monitoring and logging
+- Cost allocation
+
+## Networking
+
+### Use Services for Internal Communication
+- ClusterIP for internal services
+- NodePort/LoadBalancer for external access
+- Use Ingress for HTTP routing
+
+### Network Policies
+Implement least-privilege network access:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+```
+
+## Graceful Shutdown
+
+### Handle SIGTERM
+- Application should handle SIGTERM signal
+- Complete in-flight requests
+- Close database connections
+
+### Lifecycle Hooks
+```yaml
+lifecycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 10"]
+```
+
+### Termination Grace Period
+```yaml
+spec:
+  terminationGracePeriodSeconds: 60
+```
